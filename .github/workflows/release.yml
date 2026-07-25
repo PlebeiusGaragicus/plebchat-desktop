@@ -1,0 +1,102 @@
+# Builds PlebChat Desktop from the PRIVATE monorepo (plebchat-me) and
+# publishes installers + the signed updater latest.json as a release ON
+# THIS public repo. This workflow lives here, not in the monorepo, on
+# purpose: public repos get free unmetered Actions minutes (macOS runners
+# bill 10x on private repos), so the desktop matrix costs nothing.
+#
+# PUBLIC-REPO HYGIENE: these logs are world-readable. Never add a step
+# that prints source files or secrets.
+#
+# Secrets required (Settings → Secrets and variables → Actions):
+#   MONOREPO_PAT                        fine-grained PAT, contents:read on
+#                                       PlebeiusGaragicus/plebchat-me AND
+#                                       PlebeiusGaragicus/cyphertap (submodule)
+#   TAURI_SIGNING_PRIVATE_KEY           updater signing key (~/.tauri/plebchat.key)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty string if none)
+#
+# Release flow: tag desktop-vX.Y.Z in the monorepo → dispatch this with
+# that tag → review the draft release → publish. Installed apps update
+# from releases/latest/download/latest.json.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "plebchat-me tag to build (e.g. desktop-v0.1.0)"
+        required: true
+        type: string
+
+jobs:
+  build:
+    permissions:
+      contents: write # create the release on this repo
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            args: --target aarch64-apple-darwin
+            targets: aarch64-apple-darwin
+          - os: macos-latest
+            args: --target x86_64-apple-darwin
+            targets: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            args: ""
+            targets: ""
+          - os: windows-latest
+            args: ""
+            targets: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out the monorepo at the release tag
+        uses: actions/checkout@v4
+        with:
+          repository: PlebeiusGaragicus/plebchat-me
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.MONOREPO_PAT }}
+          submodules: recursive
+
+      # The app stamps __APP_COMMIT__ from GITHUB_SHA (vite define). In a
+      # cross-repo checkout GITHUB_SHA is this repo's commit — override it
+      # with the monorepo commit actually being built.
+      - name: Stamp the monorepo commit
+        shell: bash
+        run: echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - name: Install Linux webview dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          tagName: ${{ inputs.ref }}
+          releaseName: "PlebChat Desktop ${{ inputs.ref }}"
+          releaseBody: "Built from plebchat-me tag `${{ inputs.ref }}`. See the assets below to download and install."
+          releaseDraft: true
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
