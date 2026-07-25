@@ -12,7 +12,11 @@
 #                                       PlebeiusGaragicus/plebchat-me AND
 #                                       PlebeiusGaragicus/cyphertap (submodule)
 #   TAURI_SIGNING_PRIVATE_KEY           updater signing key (~/.tauri/plebchat.key)
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty string if none)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password — LEAVE UNSET for a
+#                                       passwordless key (GitHub refuses
+#                                       empty secret values; an unset
+#                                       secret resolves to "" here, which
+#                                       is what the signer expects)
 #
 # Release flow: tag desktop-vX.Y.Z in the monorepo → dispatch this with
 # that tag → review the draft release → publish. Installed apps update
