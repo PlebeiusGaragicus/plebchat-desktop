@@ -9,7 +9,8 @@
 #
 # Secrets required (Settings → Secrets and variables → Actions):
 #   MONOREPO_PAT                        fine-grained PAT, contents:read on
-#                                       PlebeiusGaragicus/plebchat-me AND
+#                                       PlebeiusGaragicus/plebeiusgaragicus.github.io
+#                                       (the monorepo) AND
 #                                       PlebeiusGaragicus/cyphertap (submodule)
 #   TAURI_SIGNING_PRIVATE_KEY           updater signing key (~/.tauri/plebchat.key)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password — LEAVE UNSET for a
@@ -56,7 +57,7 @@ jobs:
       - name: Check out the monorepo at the release tag
         uses: actions/checkout@v4
         with:
-          repository: PlebeiusGaragicus/plebchat-me
+          repository: PlebeiusGaragicus/plebeiusgaragicus.github.io
           ref: ${{ inputs.ref }}
           token: ${{ secrets.MONOREPO_PAT }}
           submodules: recursive
